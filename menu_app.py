@@ -1,4 +1,6 @@
 from datetime import datetime
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, LineChart, Reference
 
 selected_spreadsheet = None
 
@@ -65,6 +67,94 @@ def getInput():
             print(f"Error processing entry: {error}")
 
 
+# createChart: reads the CSV at file_path, asks the user to choose between the
+# original or converted data column, then writes the data to final.xlsx and
+# embeds a bar or line chart with labelled axes and a title of
+# "<student ID> <current date>".
+# Arguments:
+#   file_path (str): path to the CSV data file
+#   chart_type (str): "bar" or "line"
+# Returns: None
+def createChart(file_path, chart_type):
+    unit_map = {
+        "temperature": ("Fahrenheit", "Celsius"),
+        "weight": ("Pounds", "Kilograms"),
+        "rainfall": ("Inches", "Centimeters"),
+    }
+    original_label, converted_label = unit_map.get(selected_spreadsheet, ("Original Value", "Converted Value"))
+
+    print("Choose data source:")
+    print(f"1. {original_label}")
+    print(f"2. {converted_label}")
+    source_choice = input("Selection: ")
+
+    dates = []
+    original_values = []
+    converted_values = []
+    try:
+        with open(file_path, "r") as csv_file:
+            for line in csv_file:
+                line = line.strip()
+                if line:
+                    parts = line.split(",")
+                    dates.append(parts[0])
+                    original_values.append(float(parts[1]))
+                    converted_values.append(float(parts[2]))
+    except Exception as error:
+        print(f"Error reading {file_path}: {error}")
+        return
+
+    if source_choice == "1":
+        values = original_values
+        y_label = original_label
+    else:
+        values = converted_values
+        y_label = converted_label
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Zoo Data"
+    ws.append(["Date", y_label])
+    for date, value in zip(dates, values):
+        ws.append([date, value])
+
+    if chart_type == "bar":
+        chart = BarChart()
+    else:
+        chart = LineChart()
+
+    chart.title = f"jamstr4441 {datetime.now().strftime('%m/%d/%Y')}"
+    chart.x_axis.title = "Date"
+    chart.y_axis.title = y_label
+
+    data = Reference(ws, min_col=2, min_row=1, max_row=len(values) + 1)
+    cats = Reference(ws, min_col=1, min_row=2, max_row=len(dates) + 1)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(cats)
+
+    ws.add_chart(chart, "E2")
+    wb.save("final.xlsx")
+    print("Chart saved to final.xlsx")
+
+
+# generateReport: asks the user to choose between a line or bar chart, then
+# calls createChart to generate the chart from the CSV data file.
+# Arguments:
+#   file_path (str): path to the CSV data file
+# Returns: None
+def generateReport(file_path):
+    print("Choose graph type:")
+    print("1. Line chart")
+    print("2. Bar chart")
+    chart_choice = input("Selection: ")
+    if chart_choice == "1":
+        createChart(file_path, "line")
+    elif chart_choice == "2":
+        createChart(file_path, "bar")
+    else:
+        print("Error: Invalid choice selected.")
+
+
 print("jamstr4441 Spreadsheet Automation Menu.")
 
 menu_options = ["Input Data", "View Current Data", "Generate Report"]
@@ -83,6 +173,6 @@ if option.isdigit() and 1 <= int(option) <= len(menu_options):
     elif option == "2":
         viewData("ZooData.csv")
     else:
-        print("Error: The chosen functionality is not implemented yet")
+        generateReport("ZooData.csv")
 else:
     print("Error: Invalid choice selected.")
